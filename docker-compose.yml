@@ -1,0 +1,138 @@
+version: '3.8'
+services:
+  order-service:
+    image: 'order-service:latest'
+    build:
+      context: .
+      dockerfile: OrderService/Dockerfile
+    ports:
+      - '5051:80'
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__OrderServiceDatabase=Host=orderservice-db;Port=5432;Database=OrderServiceDb;Username=OrderUser;Password=OrderPassword
+      - RabbitMQ__HostName=rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      orderservice-db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  stock-service:
+    image: stock-service
+    build:
+      context: .
+      dockerfile: StockService/Dockerfile
+    ports:
+      - '5052:80'
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__StockServiceDatabase=Host=stockservice-db;Database=StockServiceDb;Username=StockUser;Password=StockPassword
+      - RabbitMQ__HostName=rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      stockservice-db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  notification-service:
+    image: notification-service
+    build:
+      context: .
+      dockerfile: NotificationService/Dockerfile
+    ports:
+      - '5053:80'
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__NotificationServiceDatabase=Host=notificationservice-db;Database=NotificationServiceDb;Username=NotificationUser;Password=NotificationPassword
+      - RabbitMQ__HostName=rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      notificationservice-db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - 5672:5672
+      - 15672:15672
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  orderservice-db:
+    image: postgres
+    environment:
+      POSTGRES_USER: OrderUser
+      POSTGRES_PASSWORD: OrderPassword
+      POSTGRES_DB: OrderServiceDb
+    ports:
+      - '5433:5432'
+    volumes:
+      - 'orderservice-data:/var/lib/postgresql/data'
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U OrderUser"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  stockservice-db:
+    image: postgres
+    environment:
+      POSTGRES_USER: StockUser
+      POSTGRES_PASSWORD: StockPassword
+      POSTGRES_DB: StockServiceDb
+    ports:
+      - '5434:5432'
+    volumes:
+      - 'stockservice-data:/var/lib/postgresql/data'
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U StockUser"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  notificationservice-db:
+    image: postgres
+    environment:
+      POSTGRES_USER: NotificationUser
+      POSTGRES_PASSWORD: NotificationPassword
+      POSTGRES_DB: NotificationServiceDb
+    ports:
+      - '5435:5432'
+    volumes:
+      - 'notificationservice-data:/var/lib/postgresql/data'
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U NotificationUser"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  orderservice-data:
+    driver: local
+  stockservice-data:
+    driver: local
+  notificationservice-data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
